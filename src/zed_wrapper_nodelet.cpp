@@ -81,8 +81,10 @@ namespace zed_wrapper {
         image_transport::Publisher pub_raw_rgb;
         image_transport::Publisher pub_left;
         image_transport::Publisher pub_raw_left;
+        image_transport::Publisher pub_undistorted_left;
         image_transport::Publisher pub_right;
         image_transport::Publisher pub_raw_right;
+        image_transport::Publisher pub_undistorted_right;
         image_transport::Publisher pub_depth;
         image_transport::Publisher pub_disparity;
         image_transport::Publisher pub_confidence;
@@ -136,13 +138,21 @@ namespace zed_wrapper {
         int rgb_rect_publish_flag = 0;
         int left_raw_publish_flag = 0;
         int left_rect_publish_flag = 0;
+        int left_undistorted_publish_flag = 0;
         int right_raw_publish_flag = 0;
         int right_rect_publish_flag = 0;
+        int right_undistorted_publish_flag = 0;
         int disparity_publish_flag = 0;
         int depth_publish_flag = 0;
         int confidence_publish_flag = 0;
         int point_cloud_publish_flag = 0;
         int odometry_publish_flag = 0;
+
+        //camera parameter
+        cv::Mat left_camera_matrix = cv::Mat(cv::Size(3,3),CV_32FC1, cv::Scalar(0));
+        cv::Mat right_camera_matrix = cv::Mat(cv::Size(3,3),CV_32FC1, cv::Scalar(0));
+        cv::Mat left_distCoeff = cv::Mat(cv::Size(1,4),CV_32FC1, cv::Scalar(0));
+        cv::Mat right_distCoeff = cv::Mat(cv::Size(1,4),CV_32FC1, cv::Scalar(0));
 
         // Point cloud variables
         sl::zed::Mat cloud;
@@ -369,12 +379,11 @@ namespace zed_wrapper {
             float cx = zedParam->LeftCam.cx;
             float cy = zedParam->LeftCam.cy;
 
-            // There is no distorsions since the images are rectified
-            double k1 = 0;
-            double k2 = 0;
-            double k3 = 0;
-            double p1 = 0;
-            double p2 = 0;
+            double k1 = zedParam->LeftCam.disto[0];
+            double k2 = zedParam->LeftCam.disto[1];
+            double k3 = zedParam->LeftCam.disto[2];
+            double p1 = zedParam->LeftCam.disto[3];
+            double p2 = zedParam->LeftCam.disto[4];
 
             left_cam_info_msg->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
             right_cam_info_msg->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
@@ -449,6 +458,40 @@ namespace zed_wrapper {
                 tracking_activated = true;
             }
 
+            sl::zed::StereoParameters* zedParam = zed->getParameters();
+
+            if(left_undistorted_publish_flag == 1){
+                left_camera_matrix.at<float>(0,0) =  zedParam->LeftCam.fx; //fx
+                left_camera_matrix.at<float>(1,1) =  zedParam->LeftCam.fy; //fy
+                left_camera_matrix.at<float>(0,2) =  zedParam->LeftCam.cx; //cx
+                left_camera_matrix.at<float>(1,2) =  zedParam->LeftCam.cy; //cy
+                left_camera_matrix.at<float>(2,2) =  1.0;
+                left_distCoeff.at<float>(0,0) = zedParam->LeftCam.disto[0];
+                left_distCoeff.at<float>(0,1) = zedParam->LeftCam.disto[1];
+                left_distCoeff.at<float>(0,2) = zedParam->LeftCam.disto[2];
+                left_distCoeff.at<float>(0,3) = zedParam->LeftCam.disto[3];
+                left_distCoeff.at<float>(0,4) = zedParam->LeftCam.disto[4];
+            }
+            if(right_undistorted_publish_flag == 1){
+                right_camera_matrix.at<float>(0,0) =  zedParam->RightCam.fx; //fx
+                right_camera_matrix.at<float>(1,1) =  zedParam->RightCam.fy; //fy
+                right_camera_matrix.at<float>(0,2) =  zedParam->RightCam.cx; //cx
+                right_camera_matrix.at<float>(1,2) =  zedParam->RightCam.cy; //cy
+                right_camera_matrix.at<float>(2,2) =  1.0;
+                right_distCoeff.at<float>(0,0) = zedParam->RightCam.disto[0];
+                right_distCoeff.at<float>(0,1) = zedParam->RightCam.disto[1];
+                right_distCoeff.at<float>(0,2) = zedParam->RightCam.disto[2];
+                right_distCoeff.at<float>(0,3) = zedParam->RightCam.disto[3];
+                right_distCoeff.at<float>(0,4) = zedParam->RightCam.disto[4];
+            }
+
+//        cv::Mat left_camera_matrix = cv::Mat(cv::Size(3,3),CV_32FC1, cv::Scalar(0));
+//        cv::Mat right_camera_matrix = cv::Mat(cv::Size(3,3),CV_32FC1, cv::Scalar(0));
+//        cv::Mat left_distCoeff = cv::Mat(cv::Size(1,4),CV_32FC1, cv::Scalar(0));
+//        cv::Mat right_distCoeff = cv::Mat(cv::Size(1,4),CV_32FC1, cv::Scalar(0));
+
+
+
             // Main loop
             while (nh_ns.ok()) {
                 ros::Time t = ros::Time::now(); // Get current time
@@ -498,7 +541,7 @@ namespace zed_wrapper {
                 }
 
                 // Publish the left_raw == rgb_raw image
-                if (rgb_raw_publish_flag == 1 || left_raw_publish_flag == 1) {
+                if (rgb_raw_publish_flag == 1 || left_raw_publish_flag == 1 || left_undistorted_publish_flag == 1) {
                     // Retrieve RGBA Left image
                     cv::cvtColor(slMat2cvMat(zed->retrieveImage(sl::zed::SIDE::LEFT_UNRECTIFIED)), leftImRGB, CV_RGBA2RGB); // Convert to RGB
                     if (left_raw_publish_flag == 1) {
@@ -508,6 +551,14 @@ namespace zed_wrapper {
                     if (rgb_raw_publish_flag == 1) {
                         publishCamInfo(rgb_cam_info_msg, pub_rgb_cam_info, t);
                         publishImage(leftImRGB, pub_raw_rgb, rgb_frame_id, t);
+                    }
+                    if (left_undistorted_publish_flag == 1){
+                        publishCamInfo(left_cam_info_msg, pub_left_cam_info, t);
+                        cv::Mat tmp_left_img;
+                        if(leftImRGB.empty() != true) cv::undistort(leftImRGB,tmp_left_img,left_camera_matrix,left_distCoeff);
+                        leftImRGB = tmp_left_img.clone();
+                        publishImage(leftImRGB, pub_undistorted_left, left_frame_id, t);
+
                     }
                 }
 
@@ -520,11 +571,19 @@ namespace zed_wrapper {
                 }
 
                 // Publish the right image
-                if (right_raw_publish_flag == 1) {
+                if (right_raw_publish_flag == 1 || right_undistorted_publish_flag == 1) {
                     // Retrieve RGBA Right image
                     cv::cvtColor(slMat2cvMat(zed->retrieveImage(sl::zed::SIDE::RIGHT_UNRECTIFIED)), rightImRGB, CV_RGBA2RGB); // Convert to RGB
-                    publishCamInfo(right_cam_info_msg, pub_right_cam_info, t);
-                    publishImage(rightImRGB, pub_raw_right, right_frame_id, t);
+                    if(right_raw_publish_flag == 1){
+                        publishCamInfo(right_cam_info_msg, pub_right_cam_info, t);
+                        publishImage(rightImRGB, pub_raw_right, right_frame_id, t);
+                    }
+                    if(right_undistorted_publish_flag == 1){
+                        cv::Mat tmp_right_img;
+                        if(rightImRGB.empty() != true) cv::undistort(rightImRGB,tmp_right_img,right_camera_matrix,right_distCoeff);
+                        rightImRGB = tmp_right_img.clone();
+                        publishImage(rightImRGB, pub_undistorted_right, right_frame_id, t);
+                    }
                 }
 
                 // Publish the depth image
@@ -579,6 +638,7 @@ namespace zed_wrapper {
 
             std::string img_topic = "image_rect_color";
             std::string img_raw_topic = "image_raw_color";
+            std::string img_undistorted_topic = "image_undistorted_color";
 
             // Set the default topic names
             string rgb_topic = "rgb/" + img_topic;
@@ -588,11 +648,13 @@ namespace zed_wrapper {
 
             string left_topic = "left/" + img_topic;
             string left_raw_topic = "left/" + img_raw_topic;
+            string left_undistorted_topic = "left/" + img_undistorted_topic;
             string left_cam_info_topic = "left/camera_info";
             left_frame_id = "/zed_current_frame";
 
             string right_topic = "right/" + img_topic;
             string right_raw_topic = "right/" + img_raw_topic;
+            string right_undistorted_topic = "right/" + img_undistorted_topic;
             string right_cam_info_topic = "right/camera_info";
             right_frame_id = "/zed_current_frame";
 
@@ -642,10 +704,12 @@ namespace zed_wrapper {
 
             nh_ns.getParam("left_topic", left_topic);
             nh_ns.getParam("left_raw_topic", left_raw_topic);
+            nh_ns.getParam("left_undistorted_topic", left_undistorted_topic);
             nh_ns.getParam("left_cam_info_topic", left_cam_info_topic);
 
             nh_ns.getParam("right_topic", right_topic);
             nh_ns.getParam("right_raw_topic", right_raw_topic);
+            nh_ns.getParam("right_undistorted_topic", right_undistorted_topic);
             nh_ns.getParam("right_cam_info_topic", right_cam_info_topic);
 
             nh_ns.getParam("depth_topic", depth_topic);
@@ -696,8 +760,10 @@ namespace zed_wrapper {
             nh_ns.getParam("rgb_rect_publish_flag", rgb_rect_publish_flag);
             nh_ns.getParam("left_raw_publish_flag", left_raw_publish_flag);
             nh_ns.getParam("left_rect_publish_flag", left_rect_publish_flag);
+            nh_ns.getParam("left_undistorted_publish_flag", left_undistorted_publish_flag);
             nh_ns.getParam("right_raw_publish_flag", right_raw_publish_flag);
             nh_ns.getParam("right_rect_publish_flag", right_rect_publish_flag);
+            nh_ns.getParam("right_undistorted_publish_flag", right_undistorted_publish_flag);
             nh_ns.getParam("disparity_publish_flag", disparity_publish_flag);
             nh_ns.getParam("depth_publish_flag", depth_publish_flag);
             nh_ns.getParam("confidence_publish_flag", confidence_publish_flag);
@@ -740,10 +806,14 @@ namespace zed_wrapper {
             NODELET_INFO_STREAM("Advertized on topic " << left_topic);
             pub_raw_left = it_zed.advertise(left_raw_topic, 1); //left raw
             NODELET_INFO_STREAM("Advertized on topic " << left_raw_topic);
+            pub_undistorted_left = it_zed.advertise(left_undistorted_topic, 1); //left raw
+            NODELET_INFO_STREAM("Advertized on topic " << left_undistorted_topic);
             pub_right = it_zed.advertise(right_topic, 1); //right
             NODELET_INFO_STREAM("Advertized on topic " << right_topic);
             pub_raw_right = it_zed.advertise(right_raw_topic, 1); //right raw
             NODELET_INFO_STREAM("Advertized on topic " << right_raw_topic);
+            pub_undistorted_right = it_zed.advertise(right_undistorted_topic, 1); //right raw
+            NODELET_INFO_STREAM("Advertized on topic " << right_undistorted_topic);
             pub_depth = it_zed.advertise(depth_topic, 1); //depth
             NODELET_INFO_STREAM("Advertized on topic " << depth_topic);
             pub_disparity = it_zed.advertise(disparity_topic, 1); //disparity

@@ -40,10 +40,12 @@
 
     <param name="left_topic"            value="left/image_rect_color" />
     <param name="left_raw_topic"        value="left/image_raw_color" />
+    <param name="left_undistorted_topic"  value="left/image_undistorted_color" />
     <param name="left_cam_info_topic"   value="left/camera_info" />
 
     <param name="right_topic"           value="right/image_rect_color" />
     <param name="right_raw_topic"       value="right/image_raw_color" />
+    <param name="right_undistorted_topic"  value="right/image_undistorted_color" />
     <param name="right_cam_info_topic"  value="right/camera_info" />
 
     <param name="disparity_topic"           value="disparity/disparity_registered" />
@@ -62,10 +64,12 @@
     <!-- ROS topic publish -->
     <param name="rgb_raw_publish_flag"        value="0" />
     <param name="rgb_rect_publish_flag"       value="0" />
-    <param name="left_raw_publish_flag"       value="0" />
+    <param name="left_raw_publish_flag"       value="1" />
     <param name="left_rect_publish_flag"      value="1" />
-    <param name="right_raw_publish_flag"      value="0" />
+    <param name="left_undistorted_publish_flag"      value="1" />
+    <param name="right_raw_publish_flag"      value="1" />
     <param name="right_rect_publish_flag"     value="1" />
+    <param name="right_undistorted_publish_flag"      value="1" />
     <param name="disparity_publish_flag"      value="1" />
     <param name="depth_publish_flag"          value="1" />
     <param name="confidence_publish_flag"     value="1" />

@@ -18,7 +18,7 @@
     <!-- 0: fill(occlusion filling), 1: standard(for 3d reconstruction) -->
     <param name="sensing_mode"          value="1" />
     <!-- image frame rate -->
-    <param name="frame_rate"            value="30" />
+    <param name="frame_rate"            value="20" />
     <!-- odometry db -->
     <param name="odometry_db"           value="" />
     <param name="openni_depth_mode"     value="0" />
@@ -68,7 +68,7 @@
     <param name="right_rect_publish_flag"     value="1" />
     <param name="disparity_publish_flag"      value="1" />
     <param name="depth_publish_flag"          value="1" />
-    <param name="confidence_publish_flag"          value="1" />
+    <param name="confidence_publish_flag"     value="1" />
     <param name="point_cloud_publish_flag"    value="0" />
     <param name="odometry_publish_flag"       value="0" />
 
